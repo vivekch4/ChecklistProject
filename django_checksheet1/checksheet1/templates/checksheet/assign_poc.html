@@ -1,0 +1,62 @@
+{% extends "checksheet/base.html" %}
+{% load static %}
+{% block extra_css %}
+
+<link rel="stylesheet" href="{% static 'css/assign_poc.css' %}">
+{% endblock %}
+{% block title %}Assign POC PDFs{% endblock %}
+{% block content %}
+
+
+<div class="page-container">
+    <div class="header">
+        <h2 class="page-title">Assign Q-Gallery PDFs</h2>
+        <div class="buttons-container">
+            <button type="submit" form="poc-form" class="submit-btn">
+                <i class="fas fa-save"></i> Assign Q-Gallery
+            </button>
+            <a href="javascript:history.back()" class="back-button">
+                <i class="fas fa-times"></i>
+            </a>
+        </div>
+    </div>
+
+    <form method="post" id="poc-form">
+        {% csrf_token %}
+        
+        <!-- Table with horizontal scroll container -->
+        <div class="table-responsive">
+            <table class="poc-table">
+                <thead>
+                    <tr>
+                        <th>StarterSheet</th>
+                        {% for poc in all_pocs %}
+                            <th>{{ poc.pdf.name|cut:"poc_pdfs/"|slice:":-4" }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for startersheet in startersheets %}
+                    <tr>
+                        <td class="checksheet-name">{{ startersheet.name }}</td>
+                        {% for poc in all_pocs %}
+                        <td>
+                            <input type="checkbox" 
+                                   name="startersheet_{{ startersheet.id }}_poc" 
+                                   value="{{ poc.id }}"
+                                   {% if poc in startersheet.assigned_pocs.all %}checked{% endif %}>
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="pagination">
+                <div class="pagination-info">
+                    <span>Total startersheet: {{ startersheets|length }}</span>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

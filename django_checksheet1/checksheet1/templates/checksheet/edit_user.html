@@ -1,0 +1,150 @@
+{% extends 'checksheet/base.html' %}
+{% load static %}
+{% block extra_css %}
+
+<link rel="stylesheet" href="{% static 'css/edit_user.css' %}">
+{% endblock %}
+{% block title %}Edit User{% endblock %}
+{% block content %}
+
+
+<div class="page-container">
+    <div class="header">
+        <h2 class="page-title">
+            <i class="fas fa-user-edit"></i>
+            Edit User
+        </h2>
+        <div class="header-actions">
+            <button type="button" class="submit-btn" id="submit-btn">
+                <i class="fas fa-save"></i>
+                Save Changes
+            </button>
+            <a href="javascript:history.back()" class="back-button">
+                <i class="fas fa-times"></i>
+            </a>
+        </div>
+    </div>
+
+    <div class="form-container">
+        <form method="post" id="editUserForm" novalidate>
+            {% csrf_token %}
+            <div class="form-group">
+                <label class="form-label" for="username">Username</label>
+                <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    required
+                    class="form-input"
+                    value="{{ user.username }}"
+                    placeholder="Enter username"
+                >
+                <div class="validation-message" id="username-validation">
+                    Please enter a username
+                </div>
+            </div>
+            
+            
+
+            <div class="form-group">
+                <label class="form-label" for="email">Email</label>
+                <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    required
+                    class="form-input"
+                    value="{{ user.email }}"
+                    placeholder="Enter email address"
+                >
+                <div class="validation-message" id="email-validation">
+                    Please enter an email address
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="phone_number">Phone Number</label>
+                <input
+                    type="tel"
+                    id="phone_number"
+                    name="phone_number"
+                    required
+                    class="form-input"
+                    value="{{ user.phone_number }}"
+                    placeholder="Enter phone number"
+                >
+                <div class="validation-message" id="phone-validation">
+                    Please enter a valid phone number
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="password">New Password</label>
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    class="form-input"
+                    placeholder="Enter new password (leave blank to keep current)"
+                >
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="confirm_password">Confirm Password</label>
+                <input
+                    type="password"
+                    id="confirm_password"
+                    name="confirm_password"
+                    class="form-input"
+                    placeholder="Confirm new password"
+                >
+                <div class="validation-message" id="password-validation">
+                    Passwords do not match
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="role">Role</label>
+                <select id="role" name="role" required class="form-select">
+                    <option value="" disabled>Select a role</option>
+                    <option value="quality_incharge" {% if user.role == "quality_incharge" %}selected{% endif %}>Quality Incharge</option>
+                    <option value="shift_incharge" {% if user.role == "shift_incharge" %}selected{% endif %}>Shift Incharge</option>
+                    <option value="operator" {% if user.role == "operator" or user.role == "Operator" %}selected{% endif %}>Operator</option>
+                </select>
+                <div class="validation-message" id="role-validation">
+                    Please select a role
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+
+    <script>
+
+        document.getElementById("editUserForm").addEventListener("submit", function(event) {
+            // Get password values
+            const password = document.getElementById("password").value;
+            const confirmPassword = document.getElementById("confirm_password").value;
+            const passwordValidation = document.getElementById("password-validation");
+            
+            // If password is provided, check if it matches confirmation
+            if (password) {
+                if (password !== confirmPassword) {
+                    passwordValidation.style.display = "block";
+                    event.preventDefault(); // Prevent form submission
+                    return false;
+                } else {
+                    passwordValidation.style.display = "none";
+                }
+            }
+            
+            return true;
+        });
+
+        document.getElementById("submit-btn").addEventListener("click", function () {
+            document.getElementById("editUserForm").submit();
+        });
+  
+    
+</script>
+{% endblock %}

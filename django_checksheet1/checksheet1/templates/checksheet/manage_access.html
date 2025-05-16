@@ -1,0 +1,227 @@
+{% extends 'checksheet/base.html' %}
+{% load static %}
+{% block extra_css %}
+
+<link rel="stylesheet" href="{% static 'css/manage_access.css' %}">
+{% endblock %}
+{% block title %}Manage User Access{% endblock %}
+{% block content %}
+
+
+<div class="page-container">
+    <div class="header">
+        <h2 class="page-title">Manage User Access</h2>
+        <div class="buttons-container">
+            <button type="submit" form="access-form" class="submit-btn">
+                <i class="fas fa-save"></i> Update Access
+            </button>
+            <a href="{% url 'user_list' %}" class="back-button">
+                <i class="fas fa-times"></i>
+            </a>
+        </div>
+    </div>
+    
+    <!-- Search Container -->
+    <div class="search-container">
+        <div class="search-input-container">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" id="searchInput" class="search-input" placeholder="Search by username...">
+        </div>
+        <div class="filter-options">
+            <span class="filter-label">Filter by role:</span>
+            <select id="roleFilter" class="filter-select">
+                <option value="">All Roles</option>
+                <!-- Role options will be populated by JavaScript -->
+            </select>
+        </div>
+    </div>
+    
+    <!-- Search results indicator -->
+    <div class="search-results" id="searchResults"></div>
+    
+    <form method="post" id="access-form">
+        {% csrf_token %}
+        
+        <!-- Table with horizontal scroll container -->
+        <div class="table-responsive">
+            <table class="access-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Role</th>
+                        {% for key, label in pages.items %}
+                            <th>{{ label }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td class="username">{{ user.username }}</td>
+                        <td><span class="role-chip">{{ user.role }}</span></td>
+                        {% for key, label in pages.items %}
+                        <td style="text-align: center;">
+                            <input type="checkbox" 
+                                    name="access_{{ user.id }}_{{ key }}" 
+                                    value="1"
+                                    {% if key in user.access_pages %} checked {% endif %}>
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="pagination">
+                <div class="pagination-info">
+                    <span>Total Users: {{ users|length }}</span>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% if messages %}
+<div class="toast-container">
+    {% for message in messages %}
+    {% with message.tags.split as tags_list %}
+        {% if 'manage' in tags_list %}
+        <div class="toast-message toast-success">
+            <div class="toast-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="toast-content">
+                {{ message }}
+            </div>
+        </div>
+        {% endif %}
+    {% endwith %}
+    {% endfor %}
+</div>
+{% endif %}
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const toastMessages = document.querySelectorAll('.toast-message');
+        
+        toastMessages.forEach(toast => {
+            // Display the toast for 5 seconds then fade out
+            setTimeout(() => {
+                toast.style.animation = 'fadeOut 0.5s ease forwards';
+                setTimeout(() => {
+                    toast.remove();
+                }, 500);
+            }, 5000);
+        });
+    });
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Get references to DOM elements
+    const searchInput = document.getElementById('searchInput');
+    const roleFilter = document.getElementById('roleFilter');
+    const searchResults = document.getElementById('searchResults');
+    const tableRows = document.querySelectorAll('.access-table tbody tr');
+    
+    // Populate role filter with unique roles from the table
+    populateRoleOptions();
+    
+    // Add event listeners
+    searchInput.addEventListener('input', filterTable);
+    roleFilter.addEventListener('change', filterTable);
+    
+    // Function to populate role options
+    function populateRoleOptions() {
+        const roles = getUniqueRoles();
+        
+        // Add each role as an option
+        roles.forEach(role => {
+            const option = document.createElement('option');
+            option.value = role.toLowerCase(); // Use lowercase for value
+            option.textContent = role;
+            roleFilter.appendChild(option);
+        });
+    }
+    
+    // Function to filter the table
+    function filterTable() {
+        const searchText = searchInput.value.toLowerCase().trim();
+        const selectedRole = roleFilter.value.toLowerCase();
+        let visibleCount = 0;
+        
+        tableRows.forEach(row => {
+            const username = row.querySelector('.username').textContent.toLowerCase();
+            const role = row.querySelector('.role-chip').textContent.toLowerCase();
+            
+            const nameMatch = username.includes(searchText);
+            const roleMatch = selectedRole === '' || role === selectedRole;
+            
+            if (nameMatch && roleMatch) {
+                row.style.display = '';
+                visibleCount++;
+                
+                // Optionally highlight matching text for name
+                if (searchText) {
+                    highlightText(row.querySelector('.username'), searchText);
+                } else {
+                    // Remove any previous highlighting
+                    row.querySelector('.username').innerHTML = row.querySelector('.username').textContent;
+                }
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        
+        // Update search results indicator
+        updateSearchResults(visibleCount);
+    }
+    
+    // Function to highlight matching text
+    function highlightText(element, searchText) {
+        if (!searchText) return;
+        
+        const text = element.textContent;
+        const regex = new RegExp(`(${searchText})`, 'gi');
+        element.innerHTML = text.replace(regex, '<span class="highlight">$1</span>');
+    }
+    
+    // Update search results message
+    function updateSearchResults(visibleCount) {
+        const totalUsers = tableRows.length;
+        
+        
+    }
+    
+    // Function to get unique roles from the table
+    function getUniqueRoles() {
+        const roles = [];
+        document.querySelectorAll('.access-table tbody tr .role-chip').forEach(roleElement => {
+            const role = roleElement.textContent.trim();
+            if (!roles.includes(role)) {
+                roles.push(role);
+            }
+        });
+        return roles;
+    }
+    
+    // Pressing Escape key clears the search
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            searchInput.value = '';
+            roleFilter.value = '';
+            
+            // Show all rows and remove highlighting
+            tableRows.forEach(row => {
+                row.style.display = '';
+                row.querySelector('.username').innerHTML = row.querySelector('.username').textContent;
+            });
+            
+            // Reset search results
+            searchResults.style.display = 'none';
+            
+            // Reset pagination info
+            const totalUsers = tableRows.length;
+            document.querySelector('.pagination-info span').textContent = 
+                `Total Users: ${totalUsers}`;
+        }
+    });
+});
+</script>
+{% endblock %}

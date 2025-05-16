@@ -1,0 +1,777 @@
+{% extends 'checksheet/base.html' %}
+
+{% load static %}
+{% block extra_css %}
+
+<link rel="stylesheet" href="{% static 'css/home.css' %}">
+{% endblock %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="dashboard">
+    <!-- Top Row: Stats Cards and Bar Graph -->
+    <div class="top-row">
+        <div class="line-filter-container">
+          
+            <select id="lineFilter" class="line-filter-dropdown">
+                <option value="all">All Lines</option>
+                {% for line in lines_list %}
+                <option value="{{ line }}">{{ line }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <!-- Stats Cards -->
+        <div class="stats-container">
+            <div class="stat-card dark-blue">
+                <div class="stat-icon">
+                    <i class="fas fa-industry"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>Total Production</h3>
+                    <p class="stat-value" id="production-count">Loading...</p>
+                </div>
+            </div>
+           
+            <div class="stat-card red">
+                <div class="stat-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>Rejected Counts</h3>
+                    <p class="stat-value" id="reject-count">Loading...</p>
+                    <p class="stat-change neutral">Monthly Rejects</p>
+                </div>
+            </div>
+           
+            <div class="stat-card green">
+                <div class="stat-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>Actual Production</h3>
+                    <p class="stat-value" id="actual-production">Loading...</p>
+                    <p class="stat-change neutral">Monthly Production</p>
+                </div>
+            </div>
+           
+            <div class="stat-card blue">
+                <div class="stat-icon">
+                    <i class="fas fa-percentage"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>Efficiency %</h3>
+                    <p class="stat-value" id="efficiency-percent">Loading...</p>
+                    <p class="stat-change neutral"></p>
+                </div>
+            </div>
+            <!-- Pending Cards -->
+            <a href="{% url 'acknowledgment_list' %}" class="stat-card orange">
+                <div class="stat-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>Pending Checksheets</h3>
+                    <p class="stat-value">{{ pending_count }}</p>
+                </div>
+            </a>
+           
+            <a href="{% url 'acknowledgment_list' %}" class="stat-card pink">
+                <div class="stat-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>Pending Startersheets</h3>
+                    <p class="stat-value">{{ startersheet_pending_count }}</p>
+                </div>
+            </a>
+        </div>
+
+        <!-- Bar Graph -->
+        <div class="chart-card line-chart">
+            <div class="chart-header">
+                <h3>Live Production</h3>
+            </div>
+            <div class="chart-content">
+                <canvas id="lineChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Row: Pie Chart and Line Chart -->
+    <div class="bottom-row">
+        <div class="chart-card pie-chart">
+            <div class="chart-header">
+                <h3>Count by Sheet</h3>
+                <div class="chart-actions">
+                    <select id="pieChartChecksheet" class="chart-dropdown">
+                        <option value="">Select Checksheet</option>
+                        {{ checksheet_options|safe }}
+                    </select>
+                    <button class="chart-filter active" data-period="today">Today</button>
+                    <button class="chart-filter" data-period="week">Week</button>
+                    <button class="chart-filter" data-period="month">Month</button>
+                    <button class="chart-filter" data-period="year">Year</button>
+                </div>
+            </div>
+            <div class="chart-content">
+                <canvas id="pieChart"></canvas>
+                <div id="pieChartNoData" class="no-data-message">Please select a checksheet to view data</div>
+            </div>
+        </div>
+       
+        <div class="chart-card bar-graph">
+            <div class="chart-header">
+                <h3>Checksheet count</h3>
+                <div class="chart-actions">
+                    <button class="chart-filter active" data-period="today">Today</button>
+                    <button class="chart-filter" data-period="week">Week</button>
+                    <button class="chart-filter" data-period="month">Month</button>
+                    <button class="chart-filter" data-period="year">Year</button>
+                </div>
+            </div>
+            <div class="chart-content">
+                <canvas id="barChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<script>
+    window.onload = function () {
+        setupWebSocketUpdates();
+    };
+// Utility function to get chart text color based on theme
+function getChartTextColor() {
+    return document.body.classList.contains('white-mode') ? '#333333' : '#ffffff';
+}
+
+// Utility function to update chart text colors
+function updateChartTextColors(chart) {
+    if (!chart) return;
+    const textColor = getChartTextColor();
+    if (chart.options.scales) {
+        if (chart.options.scales.x) {
+            chart.options.scales.x.ticks.color = textColor;
+            chart.options.scales.x.grid.color = document.body.classList.contains('white-mode') ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)';
+        }
+        if (chart.options.scales.y) {
+            chart.options.scales.y.ticks.color = textColor;
+            chart.options.scales.y.grid.color = document.body.classList.contains('white-mode') ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)';
+        }
+    }
+    if (chart.options.plugins.datalabels) {
+        chart.options.plugins.datalabels.color = textColor;
+        if (chart.options.plugins.datalabels.backgroundColor && chart.config.type === 'line') {
+            chart.options.plugins.datalabels.backgroundColor = document.body.classList.contains('white-mode') ? 'rgba(52, 152, 219, 0.9)' : 'rgba(52, 152, 219, 0.7)';
+        }
+    }
+    if (chart.options.plugins.legend && chart.options.plugins.legend.labels) {
+        chart.options.plugins.legend.labels.color = textColor;
+    }
+    chart.update();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Register the Chart.js DataLabels plugin
+    if (typeof ChartDataLabels !== 'undefined') {
+        Chart.register(ChartDataLabels);
+    } else {
+        console.warn('ChartDataLabels plugin not found. Make sure to include the plugin script.');
+    }
+
+    // Parse checksheets data globally so it's available throughout the code
+    window.checksheets = parseChecksheets();
+
+    // Initialize all charts and UI components
+    initializeCharts();
+    setupEventListeners();
+    loadInitialData();
+   
+    // Watch for theme changes
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.attributeName === 'class' && mutation.target.classList.contains('white-mode')) {
+                updateChartTextColors(window.barChart);
+                updateChartTextColors(window.pieChart);
+                updateChartTextColors(window.lineChart);
+            } else if (mutation.attributeName === 'class' && !mutation.target.classList.contains('white-mode')) {
+                updateChartTextColors(window.barChart);
+                updateChartTextColors(window.pieChart);
+                updateChartTextColors(window.lineChart);
+            }
+        });
+    });
+    observer.observe(document.body, { attributes: true });
+});
+
+function parseChecksheets() {
+    try {
+        return JSON.parse('{{ checksheets_data_json|safe }}');
+    } catch (e) {
+        console.error('Error parsing checksheets data:', e);
+        return [];
+    }
+}
+
+function initializeCharts() {
+    configureChartDefaults();
+    window.barChart = initializeBarChart();
+    window.pieChart = initializePieChart();
+    window.lineChart = initializeLineChart();
+    setupResizeHandlers();
+}
+
+function configureChartDefaults() {
+    Chart.defaults.color = getChartTextColor();
+    Chart.defaults.borderColor = document.body.classList.contains('white-mode') ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)';
+}
+
+function initializeBarChart() {
+    const barCtx = document.getElementById('barChart');
+    if (!barCtx) {
+        console.warn('Bar chart canvas not found');
+        return null;
+    }
+
+    return new Chart(barCtx.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Count',
+                data: [],
+                backgroundColor: [],
+                borderColor: [],
+                borderWidth: 2,
+                borderRadius: 5,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: {
+                padding: {
+                    top: window.innerWidth <= 480 ? 15 : 25
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        title: function(tooltipItems) {
+                            const index = tooltipItems[0].dataIndex;
+                            return this.chart.originalLabels ?
+                                this.chart.originalLabels[index] :
+                                tooltipItems[0].label;
+                        }
+                    }
+                },
+                datalabels: {
+                    display: true,
+                    anchor: 'end',
+                    align: 'top',
+                    offset: 4,
+                    formatter: function(value) { return value; },
+                    font: {
+                        weight: 'bold',
+                        size: window.innerWidth <= 480 ? 8 : 10
+                    },
+                    color: getChartTextColor(),
+                    clamp: true
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: document.body.classList.contains('white-mode') ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)'
+                    },
+                    ticks: {
+                        color: getChartTextColor(),
+                        font: { size: window.innerWidth <= 480 ? 8 : 10 },
+                        stepSize: 1,
+                        callback: function(value) {
+                            return Number.isInteger(value) ? value : null;
+                        }
+                    },
+                    suggestedMax: function(context) {
+                        const maxValue = context.chart.data.datasets[0].data.reduce(
+                            (max, value) => value > max ? value : max, 0
+                        );
+                        return Math.ceil(maxValue * 1.1);
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        color: getChartTextColor(),
+                        callback: function(value, index) {
+                            const label = this.getLabelForValue(value);
+                            return shortenLabel(label, window.innerWidth <= 480 ? 8 : 10);
+                        },
+                        font: { size: window.innerWidth <= 480 ? 8 : 10 }
+                    }
+                }
+            },
+            barPercentage: 0.3,
+            categoryPercentage: 0.5
+        }
+    });
+}
+
+function initializePieChart() {
+    const pieChartNoData = document.getElementById('pieChartNoData');
+    const pieChartElement = document.getElementById('pieChart');
+
+    if (!pieChartElement) {
+        console.warn('Pie chart canvas not found');
+        return null;
+    }
+
+    if (pieChartNoData) pieChartNoData.style.display = 'flex';
+    pieChartElement.style.display = 'none';
+
+    return new Chart(pieChartElement.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: [],
+            datasets: [{
+                data: [],
+                backgroundColor: ['rgba(46, 204, 113, 0.7)', 'rgba(231, 76, 60, 0.7)', 'rgba(241, 196, 15, 0.7)'],
+                borderColor: ['rgba(46, 204, 113, 1)', 'rgba(231, 76, 60, 1)', 'rgba(241, 196, 15, 1)'],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        boxWidth: 10,
+                        color: getChartTextColor(),
+                        font: { size: window.innerWidth <= 480 ? 8 : 10 }
+                    }
+                },
+                datalabels: {
+                    formatter: (value, ctx) => {
+                        let sum = 0;
+                        let dataArr = ctx.chart.data.datasets[0].data;
+                        dataArr.forEach(data => { sum += data; });
+                        let percentage = (value*100 / sum).toFixed(1)+"%";
+                        return percentage;
+                    },
+                    color: getChartTextColor(),
+                    font: {
+                        weight: 'bold',
+                        size: window.innerWidth <= 480 ? 8 : 10
+                    }
+                }
+            }
+        }
+    });
+}
+
+function initializeLineChart() {
+    const lineCtx = document.getElementById('lineChart');
+    if (!lineCtx) {
+        console.warn('Line chart canvas not found');
+        return null;
+    }
+
+    return new Chart(lineCtx.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: ['12:30', '12:35', '12:40', '12:45', '12:50'],
+            datasets: [{
+                label: 'Production live',
+                data: [10, 15, 5, 85, 15],
+                fill: true,
+                backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                borderColor: 'rgba(52, 152, 219, 1)',
+                tension: 0.4,
+                pointBackgroundColor: 'rgba(52, 152, 219, 1)',
+                pointBorderColor: '#fff',
+                pointRadius: 4,
+                pointHoverRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: {
+                padding: {
+                    top: window.innerWidth <= 480 ? 15 : 25
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                datalabels: {
+                    display: true,
+                    align: 'top',
+                    anchor: 'center',
+                    offset: 7,
+                    formatter: function(value) { return value; },
+                    color: getChartTextColor(),
+                    backgroundColor: document.body.classList.contains('white-mode') ? 'rgba(52, 152, 219, 0.9)' : 'rgba(52, 152, 219, 0.7)',
+                    borderRadius: 4,
+                    padding: 4,
+                    font: {
+                        weight: 'bold',
+                        size: window.innerWidth <= 480 ? 8 : 10
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: document.body.classList.contains('white-mode') ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)' },
+                    ticks: {
+                        color: getChartTextColor(),
+                        font: { size: window.innerWidth <= 480 ? 8 : 10 }
+                    }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: {
+                        color: getChartTextColor(),
+                        font: { size: window.innerWidth <= 480 ? 8 : 10 }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function setupEventListeners() {
+    setupFilterButtons();
+    setupChecksheetSelection();
+    setupLineFilter();
+}
+
+function setupFilterButtons() {
+    const filterButtons = document.querySelectorAll('.chart-filter');
+    filterButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const siblings = this.parentNode.querySelectorAll('.chart-filter');
+            siblings.forEach(sibling => sibling.classList.remove('active'));
+            this.classList.add('active');
+            const period = this.dataset.period;
+            const chartCard = this.closest('.chart-card');
+            if (chartCard.querySelector('#barChart')) {
+                loadChartData(period);
+            } else if (chartCard.querySelector('#pieChart')) {
+                const checksheetId = document.getElementById('pieChartChecksheet')?.value;
+                if (checksheetId) {
+                    loadPieChartData(checksheetId, period);
+                }
+            } else if (chartCard.querySelector('#lineChart')) {
+                applyVisualEffect(chartCard);
+            }
+        });
+    });
+}
+
+function setupChecksheetSelection() {
+    const pieChartChecksheet = document.getElementById('pieChartChecksheet');
+    if (!pieChartChecksheet) return;
+
+    pieChartChecksheet.addEventListener('change', function() {
+        if (this.value !== '') {
+            const activePeriod = this.closest('.chart-card')
+                .querySelector('.chart-filter.active')?.dataset.period || 'today';
+            loadPieChartData(this.value, activePeriod);
+        } else {
+            const pieChartNoData = document.getElementById('pieChartNoData');
+            const pieChartElement = document.getElementById('pieChart');
+            if (pieChartNoData) pieChartNoData.style.display = 'flex';
+            if (pieChartElement) pieChartElement.style.display = 'none';
+        }
+    });
+}
+
+function setupLineFilter() {
+    filterChecksheetsByLine('all');
+    const lineFilter = document.getElementById('lineFilter');
+    if (lineFilter) {
+        lineFilter.addEventListener('change', function() {
+            const selectedLine = this.value;
+            filterChecksheetsByLine(selectedLine);
+            const activePeriod = document.querySelector('.chart-card:has(#barChart) .chart-filter.active')?.dataset.period || 'today';
+            loadChartData(activePeriod, selectedLine);
+        });
+    }
+}
+
+function filterChecksheetsByLine(line) {
+    const pieChartDropdown = document.getElementById('pieChartChecksheet');
+    if (!pieChartDropdown) return;
+
+    if (!window.checksheets || !Array.isArray(window.checksheets)) {
+        console.error('Checksheets data is not available');
+        return;
+    }
+
+    while (pieChartDropdown.options.length > 1) {
+        pieChartDropdown.remove(1);
+    }
+
+    window.checksheets.forEach(sheet => {
+        if (line === 'all' || sheet.line === line) {
+            const option = document.createElement('option');
+            option.value = sheet.id;
+            option.text = sheet.name;
+            option.dataset.line = sheet.line;
+            pieChartDropdown.appendChild(option);
+        }
+    });
+
+    if (pieChartDropdown.options.length > 1) {
+        pieChartDropdown.value = pieChartDropdown.options[1].value;
+        const activePeriod = document.querySelector('.chart-card:has(#pieChart) .chart-filter.active')?.dataset.period || 'today';
+        loadPieChartData(pieChartDropdown.value, activePeriod);
+    } else {
+        pieChartDropdown.value = '';
+        const pieChartNoData = document.getElementById('pieChartNoData');
+        const pieChartElement = document.getElementById('pieChart');
+        if (pieChartNoData) pieChartNoData.style.display = 'flex';
+        if (pieChartElement) pieChartElement.style.display = 'none';
+    }
+}
+
+function loadInitialData() {
+    const lineFilter = document.getElementById('lineFilter');
+    const selectedLine = lineFilter ? lineFilter.value : 'all';
+    loadChartData('today', selectedLine);
+    if (typeof today_yes_counts_json !== 'undefined') {
+        try {
+            const initialData = JSON.parse(today_yes_counts_json);
+            updateBarChart(initialData);
+        } catch (e) {
+            console.error('Error parsing initial data:', e);
+        }
+    }
+}
+
+function loadChartData(period, line = 'all') {
+    if (line === 'all') {
+        const lineFilter = document.getElementById('lineFilter');
+        if (lineFilter) {
+            line = lineFilter.value;
+        }
+    }
+
+    fetch(`/get_chart_data/?period=${period}&line=${line}`)
+        .then(response => response.json())
+        .then(data => {
+            updateBarChart(data);
+        })
+        .catch(error => console.error('Error loading chart data:', error));
+}
+
+function loadPieChartData(checksheetId, period) {
+    fetch(`/get_pie_chart_data/?checksheet_id=${checksheetId}&period=${period}`)
+        .then(response => response.json())
+        .then(data => {
+            updatePieChart(data);
+        })
+        .catch(error => console.error('Error loading pie chart data:', error));
+}
+
+function updateBarChart(data) {
+    if (!window.barChart) return;
+    const labels = data.map(item => item.name);
+    const counts = data.map(item => item.yes_count);
+    window.barChart.originalLabels = [...labels];
+    const backgroundColors = generateColorArray(labels.length, 0.7);
+    const borderColors = generateColorArray(labels.length, 1);
+    window.barChart.data.labels = labels;
+    window.barChart.data.datasets[0].data = counts;
+    window.barChart.data.datasets[0].backgroundColor = backgroundColors;
+    window.barChart.data.datasets[0].borderColor = borderColors;
+    window.barChart.options.scales.y.suggestedMax = Math.max(...counts) * 1.1;
+    window.barChart.update();
+}
+
+function updatePieChart(data) {
+    if (!window.pieChart) return;
+    const pieChartNoData = document.getElementById('pieChartNoData');
+    const pieChartElement = document.getElementById('pieChart');
+    if (pieChartNoData) pieChartNoData.style.display = 'none';
+    if (pieChartElement) pieChartElement.style.display = 'block';
+    const fields = Object.keys(data.zone_yes_counts);
+    const counts = Object.values(data.zone_yes_counts);
+    const backgroundColors = generateColorArray(fields.length, 0.7);
+    const borderColors = generateColorArray(fields.length, 1);
+    window.pieChart.data.labels = fields;
+    window.pieChart.data.datasets[0].data = counts;
+    window.pieChart.data.datasets[0].backgroundColor = backgroundColors;
+    window.pieChart.data.datasets[0].borderColor = borderColors;
+    window.pieChart.update();
+}
+
+function setupWebSocketUpdates() {
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const wsUrl = `${protocol}://${window.location.host}/ws/production/`;
+    console.log(`Connecting to WebSocket URL: ${wsUrl}`);
+
+    const socket = new WebSocket(wsUrl);
+
+    socket.onopen = function () {
+        console.log("WebSocket connected");
+    };
+
+    socket.onmessage = function (event) {
+        console.log("Raw WebSocket message received:", event.data);
+        try {
+            const data = JSON.parse(event.data);
+            console.log("Parsed WebSocket data:", data);
+            if (data.type === "send_production_update") {
+                console.log("Processing production update with data:", data.data);
+                updateDashboardElements(data.data);
+            } else {
+                console.log("Received non-production update message:", data);
+            }
+        } catch (e) {
+            console.error("Error parsing WebSocket message:", e);
+        }
+    };
+
+    socket.onerror = function (error) {
+        console.error("WebSocket error:", error);
+        setErrorState();
+    };
+
+    socket.onclose = function () {
+        console.warn("WebSocket closed");
+        setErrorState();
+    };
+}
+
+function updateDashboardElements(data) {
+    console.log("Updating dashboard elements with data:", data);
+    if (!data) {
+        console.warn("No data received for dashboard update");
+        return;
+    }
+    updateElementText("production-count", data.production_count ?? "N/A");
+    updateElementText("reject-count", data.total_rejects ?? "N/A");
+    updateElementText("actual-production", data.actual_production ?? "N/A");
+    updateElementText("efficiency-percent", data.efficiency ?? "N/A");
+    if (data.connection_status) {
+        updateElementText("connection-status", data.connection_status);
+    }
+    console.log("Dashboard elements updated");
+}
+
+function updateElementText(id, text) {
+    const element = document.getElementById(id);
+    if (element) {
+        console.log(`Updating element ${id} with text: ${text}`);
+        element.textContent = text;
+    } else {
+        console.warn(`Element with ID ${id} not found`);
+    }
+}
+
+function setErrorState() {
+    console.log("Setting error state for dashboard elements");
+    updateElementText("production-count", "58");
+    updateElementText("reject-count", "17");
+    updateElementText("actual-production", "41");
+    updateElementText("efficiency-percent", "70.69%");
+}
+
+function setupResizeHandlers() {
+    setupSidebarObserver();
+    window.addEventListener('resize', resizeCharts);
+}
+
+function setupSidebarObserver() {
+    const sidebarToggle = document.querySelector('.sidebar-toggle');
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', () => {
+            setTimeout(resizeCharts, 300);
+        });
+    }
+    const resizeObserver = new ResizeObserver(() => {
+        setTimeout(resizeCharts, 300);
+    });
+    const chartsContainer = document.querySelector('.charts-container');
+    if (chartsContainer) {
+        resizeObserver.observe(chartsContainer);
+    }
+}
+
+function resizeCharts() {
+    if (window.barChart) window.barChart.resize();
+    if (window.pieChart) window.pieChart.resize();
+    if (window.lineChart) window.lineChart.resize();
+}
+
+function shortenLabel(label, maxLength) {
+    if (!label || label.length <= maxLength) return label || '';
+    return label.substring(0, maxLength - 3) + '...';
+}
+
+function generateColorArray(count, alpha) {
+    return Array(count).fill().map((_, i) => {
+        const hue = (i * 137) % 360;
+        return `hsla(${hue}, 70%, 60%, ${alpha})`;
+    });
+}
+
+function applyVisualEffect(chartCard) {
+    const chartContent = chartCard.querySelector('.chart-content');
+    if (chartContent) {
+        chartContent.style.opacity = '0.6';
+        setTimeout(() => {
+            chartContent.style.opacity = '1';
+        }, 300);
+    }
+}
+
+// Navbar line filter integration
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.querySelector('.dashboard')) {
+        const navbar = document.querySelector('.navbar');
+        if (navbar) {
+            const logoutBtn = navbar.querySelector('.logout-btn');
+            if (logoutBtn) {
+                const navbarRight = document.createElement('div');
+                navbarRight.className = 'navbar-right';
+                const lineFilterContainer = document.querySelector('.line-filter-container');
+                if (lineFilterContainer) {
+                    const lineFilter = lineFilterContainer.cloneNode(true);
+                    logoutBtn.parentNode.removeChild(logoutBtn);
+                    navbarRight.appendChild(logoutBtn);
+                    navbarRight.appendChild(lineFilter);
+                    navbar.appendChild(navbarRight);
+                    lineFilterContainer.style.display = 'none';
+                    const navbarLineFilter = lineFilter.querySelector('#lineFilter');
+                    const dashboardLineFilter = lineFilterContainer.querySelector('#lineFilter');
+                    if (navbarLineFilter && dashboardLineFilter) {
+                        navbarLineFilter.addEventListener('change', function() {
+                            dashboardLineFilter.value = this.value;
+                            const event = new Event('change');
+                            dashboardLineFilter.dispatchEvent(event);
+                        });
+                    }
+                }
+            }
+        }
+    }
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends 'checksheet/base.html' %}
+{% load static %}
+{% block extra_css %}
+
+<link rel="stylesheet" href="{% static 'css/update_checksheet.css' %}">
+{% endblock %}
+{% block title %}Update Checksheet{% endblock %}
+{% block content %}
+
+
+<div class="page-container">
+    <!-- Header with back and save buttons -->
+    <div class="header">
+        <h1 class="page-title">Update Checksheet</h1>
+        <div class="header-actions">
+           
+            <button type="submit" form="checksheet-form" class="submit-btn">
+                <i class="fas fa-save"></i> Save Changes
+            </button>
+            <a href="{% url 'all_checksheets' %}" class="back-button">
+                <i class="fas fa-times"></i> 
+            </a>
+        </div>
+    </div>
+
+    <div class="form-container">
+        <form id="checksheet-form" method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="form-layout">
+                <!-- Left column for basic inputs -->
+                <div class="basic-inputs">
+                    <div class="form-group">
+                        <label class="form-label" for="checksheet_name">Checksheet Name</label>
+                        <input type="text" id="checksheet_name" name="checksheet_name" required
+                               class="form-input" value="{{ checksheet.name }}" placeholder="Enter checksheet name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="line">Production Line</label>
+                        <select id="line" name="line" required class="form-input">
+                            <option value="line_1" {% if checksheet.line == "line_1" %}selected{% endif %}>Line 1</option>
+                            <option value="line_2" {% if checksheet.line == "line_2" %}selected{% endif %}>Line 2</option>
+                        </select>
+                    </div>
+
+                    <!-- Existing Images in a 2x2 grid -->
+                    <div class="form-group">
+                        <label class="form-label">Update Existing Images</label>
+                        <div class="existing-images">
+                            {% for image in images %}
+                                <div class="image-box">
+                                    {% if image %}
+                                        <img src="{{ image.image.url }}" alt="Checksheet Image" class="checksheet-image">
+                                    {% else %}
+                                        <div class="empty-image-box">Empty Slot</div>
+                                    {% endif %}
+                                    
+                                    <!-- File input for image replacement -->
+                                    <label for="checksheet_image_{{ forloop.counter }}" class="file-input-label">
+                                        <i class="fas fa-upload"></i>
+                                        {% if image %}
+                                            Replace
+                                        {% else %}
+                                            Upload
+                                        {% endif %}
+                                    </label>
+                                    <input type="file" id="checksheet_image_{{ forloop.counter }}" 
+                                           name="checksheet_image_{{ forloop.counter }}" 
+                                           accept="image/*" class="file-input">
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                <!-- Right column for zone inputs -->
+                <div class="zone-inputs-container">
+                    <div class="zone-inputs-title">Zone Inputs</div>
+                    <div id="zone_inputs" class="zone-inputs">
+                        {% for zone in zones %}
+                        <div class="zone-input-container">
+                            <div class="zone-number">{{ forloop.counter }}</div>
+                            <input type="text" name="zone_{{ zone.id }}" value="{{ zone.name }}" 
+                                   class="form-input" placeholder="Zone name" required>
+                            <select name="zone_type_{{ zone.id }}" class="zone-type-select" required>
+                                <option value="text" {% if zone.input_type == "text" %}selected{% endif %}>Text</option>
+                                <option value="int" {% if zone.input_type == "int" %}selected{% endif %}>Int</option>
+                                <option value="float" {% if zone.input_type == "float" %}selected{% endif %}>Float</option>
+                                <option value="checkbox" {% if zone.input_type == "checkbox" %}selected{% endif %}>Checkbox</option>
+                            </select>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Success Popup -->
+<div id="success-popup" class="success-popup">
+    <h3>Checksheet Updated Successfully!</h3>
+</div>
+
+<script>
+    // Show file name when images are selected
+    document.querySelectorAll('.file-input').forEach(function(input) {
+        input.addEventListener('change', function(e) {
+            const fileName = e.target.files[0]?.name || 'Replace';
+            const label = this.previousElementSibling;
+            label.innerHTML = '<i class="fas fa-upload"></i> ' + (fileName.length > 8 ? fileName.substring(0, 8) + '...' : fileName);
+        });
+    });
+
+    // Show success popup if the form is submitted successfully
+    {% if success %}
+        window.onload = function() {
+            var successPopup = document.getElementById('success-popup');
+            successPopup.style.display = 'block'; // Show the popup
+            setTimeout(() => {
+                successPopup.style.animation = 'slideOut 0.3s ease forwards';
+                setTimeout(() => {
+                    successPopup.style.display = 'none';
+                    successPopup.style.animation = '';
+                }, 300);
+            }, 3000);
+        };
+    {% endif %}
+</script>
+{% endblock %}

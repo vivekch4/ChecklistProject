@@ -1,0 +1,79 @@
+{% extends 'checksheet/base.html' %}
+{% load static %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/add_zone.css' %}">
+{% endblock %}
+{% block title %}Add Zone{% endblock %}
+{% block content %}
+<style>
+    
+</style>
+
+<div class="page-container">
+    <div class="header">
+        <h2 class="page-title">Add New Zone</h2>
+        <a href="{% url 'all_checksheets' %}" class="back-button">
+            <i class="fas fa-times"></i> 
+        </a>
+    </div>
+
+    <div class="form-container">
+        <form id="zone-form" method="POST">
+            {% csrf_token %}
+            <div class="form-group">
+                <label class="form-label" for="zone_name">Zone Name</label>
+                <input type="text" id="zone_name" name="zone_name" required
+                       class="form-input" placeholder="Enter a descriptive name for the zone">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="zone_type">Zone Type</label>
+                <select id="zone_type" name="zone_type" class="form-select" required>
+                   
+                    <option value="checkbox">Checkbox </option>
+                    <option value="int">Integer </option>
+                    <option value="float">Float </option>
+                </select>
+            </div>
+            
+            <div class="form-tip">
+                <div class="form-tip-title">
+                    <i class="fas fa-lightbulb"></i>
+                    Quick Tip
+                </div>
+                <p class="form-tip-content">
+                    Choose a clear, descriptive name for your zone and select the appropriate input type based on the data you'll be collecting. This will help ensure accurate data entry later.
+                </p>
+            </div>
+           
+            <div class="form-actions">
+                <button type="submit" class="submit-btn">
+                    <i class="fas fa-plus-circle"></i>
+                    Create Zone
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="success-popup" class="success-popup">
+    <h3>Zone Added Successfully!</h3>
+</div>
+
+<script>
+    // Show success popup if the form is submitted successfully
+    {% if success %}
+        window.onload = function() {
+            var successPopup = document.getElementById('success-popup');
+            successPopup.style.display = 'block'; // Show the popup
+            setTimeout(() => {
+                successPopup.style.animation = 'slideOut 0.3s ease forwards';
+                setTimeout(() => {
+                    successPopup.style.display = 'none';
+                    successPopup.style.animation = '';
+                }, 300);
+            }, 3000);
+        };
+    {% endif %}
+</script>
+{% endblock %}

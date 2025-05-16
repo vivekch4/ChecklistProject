@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    {% load custom_tags %}
+    {% load static %}
+    <title>{% block title %}Checksheet App{% endblock %}</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        // Inline script to set initial state before page renders
+        (function() {
+            const sidebarState = localStorage.getItem('sidebarState');
+            if (sidebarState === 'collapsed') {
+                document.documentElement.classList.add('sidebar-collapsed-init');
+            }
+        })();
+    </script>
+    {% block extra_css %}
+  
+  {% endblock%}
+</head>
+<body>
+    {% if request.user.is_authenticated %}
+    <nav class="navbar">
+        <div class="navbar-left" style="display: flex; align-items: center;">
+            <button class="menu-toggle" onclick="toggleMobileSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="user-info">
+                <i class="fas fa-user-circle"></i>
+                <div class="user-details">
+                    <span class="user-name">{{ request.user.username }}</span>
+                    <span class="user-role">{{ request.user.role|default:"No role" }}</span>
+                </div>
+            </div>
+        </div>
+        <a href="{% url 'logout' %}" class="logout-btn">
+            <i class="fas fa-sign-out-alt"></i>
+            Logout
+        </a>
+    </nav>
+    {% endif %}
+
+    <button class="sidebar-toggle" onclick="toggleSidebar()">
+        <i class="fas fa-chevron-left"></i>
+    </button>
+
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h3><i class="fa-solid fa-clipboard-list si"></i> <span>Checksheet</span></h3>
+        </div>
+        
+        {% if request.user.is_authenticated %}
+        
+        {% if request.user|has_page_access:"home" %}
+        <a href="{% url 'home' %}"><i class="fas fa-home"></i><span class="sidebar-text">Home</span></a>
+        {% endif %}
+        
+        {% if request.user|has_page_access:"user_list" %}
+        <a href="{% url 'user_list' %}"><i class="fas fa-users"></i><span class="sidebar-text">Users</span></a>
+        {% endif %}
+        
+        {% if request.user|has_page_access:"all_checksheets" %}
+        <a href="{% url 'all_checksheets' %}"><i class="fas fa-clipboard-list"></i><span class="sidebar-text">Checksheets</span></a>
+        {% endif %}
+       
+        {% if request.user|has_page_access:"all_startersheet" %}
+        <a href="{% url 'all_startersheet' %}"><i class="fas fa-folder-open"></i><span class="sidebar-text">StarterSheets</span></a>
+        {% endif %}
+        
+        {% if request.user|has_page_access:"upload_poc" %}
+        <a href="{% url 'upload_poc' %}"><i class="fas fa-upload"></i><span class="sidebar-text">Q-Gallery</span></a>
+        {% endif %}
+        
+        {% if request.user|has_page_access:"acknowledgment_list" %}
+        <a href="{% url 'acknowledgment_list' %}"><i class="fas fa-clipboard-list"></i><span class="sidebar-text">Acknowledge</span></a>
+        {% endif %}
+        
+        {% if request.user.role != "admin" %}
+            {% if request.user.role == "shift_incharge" or request.user|has_page_access:"form_request_view" %}
+            <a href="{% url 'form_request' %}"><i class="fab fa-wpforms"></i><span class="sidebar-text">Form Request</span></a>
+            {% endif %}
+        {% endif %}
+
+        {% if request.user|has_page_access:"report" %}
+        <a href="{% url 'report' %}"><i class="fas fa-file"></i><span class="sidebar-text">Report</span></a>
+        {% endif %}
+   
+        {% if request.user.role != "admin" %}
+            {% if request.user.role == "operator" or request.user|has_page_access:"fill_checksheet_detail" %}
+            <a href="{% url 'view_poc' %}"><i class="fas fa-eye"></i><span class="sidebar-text">View POCs</span></a>
+            <a href="#" class="submenu-toggle"><i class="fas fa-clipboard-check"></i><span class="sidebar-text">Checksheets</span></a>
+            <div class="sub-menu">
+                {% for checksheet in checksheets %}
+                    <a href="{% url 'fill_checksheet_detail' checksheet.id %}">
+                        <i class="fas fa-file-alt"></i><span class="sidebar-text">{{ checksheet.name }}</span>
+                    </a>
+                {% empty %}
+                    <p class="text-gray-400 text-sm px-4 sidebar-text">No checksheets available.</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endif %}
+        
+        {% if request.user.role != "admin" %}
+            {% if request.user.role == "operator" or request.user|has_page_access:"fill_starter_sheet" %}
+            <a href="#" class="submenu-toggle"><i class="fas fa-folder"></i><span class="sidebar-text">Starter</span></a>
+            <div class="sub-menu">
+                {% for Start in Starter %}
+                    <a href="{% url 'fill_starter_sheet' Start.id %}">
+                        <i class="fas fa-file-alt"></i><span class="sidebar-text">{{ Start.name }}</span>
+                    </a>
+                {% empty %}
+                    <p class="text-gray-400 text-sm px-4 sidebar-text">No startersheets available.</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endif %}
+        
+        {% endif %}
+    </div>
+
+    <div class="content">
+        <div class="content-inner">
+            {% block content %}{% endblock %}
+        </div>
+        
+        <!-- Floating Settings Button -->
+        <div class="settings-float" id="settingsFloat">
+            <i class="fas fa-cog"></i>
+        </div>
+        
+        <!-- Settings Popup -->
+        <div class="settings-popup" id="settingsPopup">
+            <h4><i class="fas fa-palette"></i> Theme Settings</h4>
+            <div class="theme-mode-options">
+                <h5>Mode</h5>
+                <label class="theme-option">
+                    <input type="radio" name="themeMode" value="dark" checked>
+                    <span>Dark Mode</span>
+                </label>
+                <label class="theme-option">
+                    <input type="radio" name="themeMode" value="white">
+                    <span>White Mode</span>
+                </label>
+            </div>
+            <h5>Accent Colors</h5>
+            <div class="color-options">
+                <label class="color-option">
+                    <input type="radio" name="themeColor" value="blue" checked>
+                    <span class="color-swatch" style="background-color: #11aabb7a;"></span>
+                    Aqua Mist
+                </label>
+                <label class="color-option">
+                    <input type="radio" name="themeColor" value="green">
+                    <span class="color-swatch" style="background-color: #f05a67ba;"></span>
+                    Coral Glow
+                </label>
+                <label class="color-option">
+                    <input type="radio" name="themeColor" value="purple">
+                    <span class="color-swatch" style="background-color: #56c080a3;"></span>
+                    lime whisper
+                </label>
+                <label class="color-option">
+                    <input type="radio" name="themeColor" value="orange">
+                    <span class="color-swatch" style="background-color: #3498db80;"></span>
+                    Sapphire Haze
+                </label>
+                <label class="color-option">
+                    <input type="radio" name="themeColor" value="pink">
+                    <span class="color-swatch" style="background-color: #e67e22ad;"></span>
+                    Amber Blaze
+                </label>
+                <label class="color-option">
+                    <input type="radio" name="themeColor" value="new">
+                    <span class="color-swatch" style="background-color: #e73ca399;"></span>
+                    Rose Dusk
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const settingsFloat = document.getElementById('settingsFloat');
+            const settingsPopup = document.getElementById('settingsPopup');
+            const colorRadios = document.querySelectorAll('input[name="themeColor"]');
+            const themeModeRadios = document.querySelectorAll('input[name="themeMode"]');
+            const submenuToggles = document.querySelectorAll('.submenu-toggle');
+            const menuItems = document.querySelectorAll('.sidebar a');
+        
+            // Check if critical elements exist
+            if (!settingsFloat || !settingsPopup) {
+                console.error('Settings elements not found');
+                return;
+            }
+        
+            // Define color options
+            const colorOptions = {
+                blue: {
+                    accentColor: '#11aabb7a',
+                    accentColorSolid: '#11aabb'
+                },
+                green: {
+                    accentColor: '#f05a67ba',
+                    accentColorSolid: '#f05a67'
+                },
+                purple: {
+                    accentColor: '#56c080a3',
+                    accentColorSolid: '#56c080'
+                },
+                orange: {
+                    accentColor: '#3498db80',
+                    accentColorSolid: '#3498db'
+                },
+                pink: {
+                    accentColor: '#e67e22ad',
+                    accentColorSolid: '#e67e22'
+                },
+                new: {
+                    accentColor: '#e73ca399',
+                    accentColorSolid: '#e73ca3'
+                }
+            };
+        
+            // Toggle settings popup
+            settingsFloat.addEventListener('click', function(e) {
+                e.stopPropagation();
+                console.log('Settings float button clicked');
+                settingsPopup.classList.toggle('show');
+            });
+        
+            // Close popup when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!settingsPopup.contains(e.target) && e.target !== settingsFloat) {
+                    settingsPopup.classList.remove('show');
+                }
+            });
+        
+            // Load saved theme mode from localStorage
+            const savedThemeMode = localStorage.getItem('themeMode');
+            if (savedThemeMode === 'white') {
+                document.body.classList.add('white-mode');
+                const radio = document.querySelector(`input[name="themeMode"][value="white"]`);
+                if (radio) radio.checked = true;
+            } else {
+                document.body.classList.remove('white-mode');
+                const radio = document.querySelector(`input[name="themeMode"][value="dark"]`);
+                if (radio) radio.checked = true;
+            }
+        
+            // Handle theme mode change
+            themeModeRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const selectedMode = this.value;
+                    if (selectedMode === 'white') {
+                        document.body.classList.add('white-mode');
+                    } else {
+                        document.body.classList.remove('white-mode');
+                    }
+                    localStorage.setItem('themeMode', selectedMode);
+                });
+            });
+        
+            // Load saved color from localStorage
+            const savedColor = localStorage.getItem('themeColor');
+            if (savedColor && colorOptions[savedColor]) {
+                document.documentElement.style.setProperty('--accent-color', colorOptions[savedColor].accentColor);
+                document.documentElement.style.setProperty('--accent-color-solid', colorOptions[savedColor].accentColorSolid);
+                const radio = document.querySelector(`input[name="themeColor"][value="${savedColor}"]`);
+                if (radio) radio.checked = true;
+            } else {
+                // Default to blue
+                document.documentElement.style.setProperty('--accent-color', colorOptions.blue.accentColor);
+                document.documentElement.style.setProperty('--accent-color-solid', colorOptions.blue.accentColorSolid);
+            }
+        
+            // Update color on radio button change
+            colorRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const selectedColor = this.value;
+                    if (colorOptions[selectedColor]) {
+                        document.documentElement.style.setProperty('--accent-color', colorOptions[selectedColor].accentColor);
+                        document.documentElement.style.setProperty('--accent-color-solid', colorOptions[selectedColor].accentColorSolid);
+                        localStorage.setItem('themeColor', selectedColor);
+                        // Update floating button color
+                        settingsFloat.style.backgroundColor = colorOptions[selectedColor].accentColor;
+                        settingsFloat.style.borderColor = colorOptions[selectedColor].accentColorSolid;
+                    }
+                });
+            });
+        
+            // Add active class to current menu item
+            const currentPath = window.location.pathname;
+            menuItems.forEach(item => {
+                if (item.getAttribute('href') === currentPath) {
+                    item.classList.add('active');
+                }
+            });
+        
+            // Handle submenu toggles
+            submenuToggles.forEach(toggle => {
+                toggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const submenu = this.nextElementSibling;
+                    if (submenu) {
+                        submenu.style.display = submenu.style.display === 'none' ? 'block' : 'none';
+                        this.classList.toggle('open');
+                    }
+                });
+            });
+        
+            // Initialize sidebar state
+            const sidebarState = localStorage.getItem('sidebarState');
+            if (sidebarState === 'collapsed') {
+                document.body.classList.add('sidebar-collapsed');
+            }
+            setTimeout(function() {
+                document.body.classList.add('sidebar-ready');
+            }, 50);
+        });
+        
+        // Toggle sidebar for desktop
+        function toggleSidebar() {
+            document.body.classList.toggle('sidebar-collapsed');
+            if (document.body.classList.contains('sidebar-collapsed')) {
+                localStorage.setItem('sidebarState', 'collapsed');
+            } else {
+                localStorage.setItem('sidebarState', 'expanded');
+            }
+        }
+        
+        // Toggle sidebar for mobile
+        function toggleMobileSidebar() {
+            document.querySelector('.sidebar').classList.toggle('active');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,330 @@
+{% extends 'checksheet/base.html' %}
+{% load static %}
+{% block extra_css %}
+
+<link rel="stylesheet" href="{% static 'css/add_starterzone.css' %}">
+{% endblock %}
+{% block title %}Add Parameter{% endblock %}
+{% block content %}
+
+
+<div class="page-container">
+    <div class="header">
+        <h2 class="page-title">Add Startersheet Parameter</h2>
+        <a href="javascript:history.back()" class="back-button">
+            <i class="fas fa-times"></i>
+        </a>
+    </div>
+
+    <div class="form-container">
+        <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+           
+            <div class="form-layout">
+                <div class="form-inputs">
+                    <div class="form-group">
+                        <label class="form-label" for="zone_name">Parameter Name</label>
+                        <input type="text" id="zone_name" name="zone_name" required
+                               class="form-input" placeholder="Enter parameter name">
+                    </div>
+                   
+                    <div class="form-group">
+                        <label class="form-label" for="zone_type">Parameter Type</label>
+                        <select id="zone_type" name="zone_type" class="form-select" required>
+                            <option value="int">Integer</option>
+                            <option value="float">Decimal</option>
+                            <option value="checkbox">Checkbox</option>
+                        </select>
+                    </div>
+                    <div class="form-group min-max-group">
+                        <label class="form-label" for="zone_min">Minimum Value</label>
+                        <input type="number" id="zone_min" name="zone_min" class="form-input" placeholder="Enter minimum value">
+                    </div>
+                   
+                    <div class="form-group min-max-group">
+                        <label class="form-label" for="zone_max">Maximum Value</label>
+                        <input type="number" id="zone_max" name="zone_max" class="form-input" placeholder="Enter maximum value">
+                    </div>
+                   
+                    <div class="checkbox-container">
+                        <label class="form-label">Default Value</label>
+                        <input type="checkbox" name="zone_default">
+                    </div>
+                    
+                    <!-- New Checkbox Text Input -->
+                    <div class="form-group checkbox-text-container">
+                        <label class="form-label" for="checkbox_text">Standard</label>
+                        <input type="text" id="checkbox_text" name="checkbox_text" 
+                               class="form-input" placeholder="Enter text to display for checkbox">
+                    </div>
+
+                    <!-- Unit Row - will be hidden for checkboxes -->
+                    <div class="unit-row">
+                        <div class="unit-select-container">
+                            <label class="form-label">Unit</label>
+                            <div class="custom-select-container" id="unit-select">
+                                <input type="hidden" name="zone_unit" class="custom-select-input" value="">
+                                <button type="button" class="custom-select-toggle">Select Unit</button>
+                                <div class="custom-select-dropdown">
+                                    <input type="text" class="custom-select-search" placeholder="Search units...">
+                                    <div class="custom-select-options">
+                                        <!-- Options will be populated by JavaScript -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="custom-unit-container">
+                            <label class="form-label">Custom Unit</label>
+                            <input type="text" name="zone_custom_unit" 
+                                  class="form-input" placeholder="Or enter custom unit">
+                        </div>
+                    </div>
+                    
+                    <!-- Check Method Container -->
+                    <div class="check-method-container">
+                        <label class="form-label">Check Method</label>
+                        <textarea name="zone_check_method" 
+                                  class="check-method-textarea" 
+                                  placeholder="Enter check method details"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Parameter Image</label>
+                        <div class="file-input-container">
+                            <label class="file-input-label">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <span>Choose image</span>
+                                <input type="file" name="zone_image" accept="image/*" class="file-input">
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+           
+            <div class="parameter-info">
+                <div class="parameter-info-title">
+                    <i class="fas fa-lightbulb"></i>
+                    <span>Quick Tip</span>
+                </div>
+                <div class="parameter-info-content">
+                    Choose a descriptive name for your Parameter and select the appropriate type based on the data you'll be collecting. Integer for whole numbers, Decimal for numbers with decimals, and Checkbox for yes/no values.
+                </div>
+            </div>
+           
+            <div class="form-actions">
+                <button type="submit" class="submit-btn">
+                    <i class="fas fa-plus-circle"></i>
+                    Add Parameter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="success-popup" class="success-popup">
+    <h3>Parameter Added Successfully!</h3>
+</div>
+
+<script>
+    const UNITS = ["", "kg", "g", "mg", "l", "ml", "m", "cm", "mm", "km", "m²", "m³", "pascal", "bar", "psi", "N", "kN", "°C", "°F", "A", "V", "W", "kW", "Hz", "rpm", "s", "min", "h", "%"];
+
+    // Function to toggle inputs based on parameter type
+    function toggleInputs() {
+        const select = document.getElementById('zone_type');
+        const minMaxGroups = document.querySelectorAll('.min-max-group');
+        const checkboxContainer = document.querySelector('.checkbox-container');
+        const unitRow = document.querySelector('.unit-row');
+        const checkboxTextContainer = document.querySelector('.checkbox-text-container');
+        
+        if (select.value === 'checkbox') {
+            // For checkbox type
+            minMaxGroups.forEach(group => group.classList.add('hidden'));
+            checkboxContainer.style.display = 'flex';
+            unitRow.style.display = 'none'; // Hide unit row
+            checkboxTextContainer.style.display = 'block'; // Show checkbox text input
+        } else {
+            // For numeric types
+            minMaxGroups.forEach(group => group.classList.remove('hidden'));
+            checkboxContainer.style.display = 'none';
+            unitRow.style.display = 'grid'; // Show unit row with grid display
+            checkboxTextContainer.style.display = 'none'; // Hide checkbox text input
+        }
+    }
+
+    // Initialize custom selects
+    function initializeCustomSelects() {
+        const container = document.querySelector('.custom-select-container');
+        const hiddenInput = container.querySelector('.custom-select-input');
+        const toggleButton = container.querySelector('.custom-select-toggle');
+        const dropdown = container.querySelector('.custom-select-dropdown');
+        const searchInput = container.querySelector('.custom-select-search');
+        const optionsContainer = container.querySelector('.custom-select-options');
+        
+        // Clear existing options
+        optionsContainer.innerHTML = '';
+        
+        // Add the options
+        UNITS.forEach(unit => {
+            const option = document.createElement("div");
+            option.className = "custom-select-option";
+            option.textContent = unit || "None";
+            option.dataset.value = unit;
+            
+            option.addEventListener("click", () => {
+                // Update the hidden input and toggle button
+                hiddenInput.value = unit;
+                toggleButton.textContent = unit || "Select Unit";
+                
+                // Close the dropdown
+                dropdown.classList.remove("show");
+                
+                // Enable/disable custom unit input based on selection
+                const customUnitInput = document.querySelector('input[name="zone_custom_unit"]');
+                if (customUnitInput) {
+                    if (unit) {
+                        customUnitInput.disabled = true;
+                        customUnitInput.value = '';
+                    } else {
+                        customUnitInput.disabled = false;
+                    }
+                }
+                
+                // Add selected class to this option and remove from others
+                optionsContainer.querySelectorAll('.custom-select-option').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                option.classList.add('selected');
+            });
+            
+            optionsContainer.appendChild(option);
+        });
+        
+        // Toggle dropdown on button click
+        toggleButton.addEventListener("click", (e) => {
+            e.preventDefault();
+            dropdown.classList.toggle("show");
+            if (dropdown.classList.contains("show")) {
+                searchInput.focus();
+            }
+        });
+        
+        // Filter options based on search input
+        searchInput.addEventListener("input", () => {
+            const searchTerm = searchInput.value.toLowerCase();
+            optionsContainer.querySelectorAll(".custom-select-option").forEach(option => {
+                const text = option.textContent.toLowerCase();
+                option.style.display = text.includes(searchTerm) ? "block" : "none";
+            });
+        });
+    }
+    
+    // Function to toggle between dropdown and custom unit
+    function setupUnitInputs() {
+        const unitSelect = document.querySelector('.custom-select-container');
+        const customUnitInput = document.querySelector('input[name="zone_custom_unit"]');
+        const unitToggle = unitSelect.querySelector('.custom-select-toggle');
+        const hiddenInput = unitSelect.querySelector('.custom-select-input');
+        
+        // Add click event to the label of custom unit to enable the field
+        const customUnitLabel = customUnitInput.closest('.custom-unit-container').querySelector('.form-label');
+        
+        customUnitLabel.addEventListener('click', function() {
+            // Enable the custom unit input even if it was disabled
+            customUnitInput.disabled = false;
+            customUnitInput.focus(); // Set focus to the input
+            
+            // Disable the unit dropdown
+            unitToggle.disabled = true;
+            hiddenInput.value = '';
+            unitToggle.textContent = 'Select Unit';
+            unitSelect.style.opacity = '0.7';
+        });
+        
+        // Also add click event to the custom unit input container
+        customUnitInput.closest('.custom-unit-container').addEventListener('click', function(e) {
+            if (e.target !== customUnitInput) { // Avoid duplicate events if clicking directly on input
+                // Enable the custom unit input even if it was disabled
+                customUnitInput.disabled = false;
+                customUnitInput.focus(); // Set focus to the input
+                
+                // Disable the unit dropdown
+                unitToggle.disabled = true;
+                hiddenInput.value = '';
+                unitToggle.textContent = 'Select Unit';
+                unitSelect.style.opacity = '0.7';
+            }
+        });
+        
+        // Custom unit input event listener
+        customUnitInput.addEventListener('input', function() {
+            if (this.value) {
+                // If something is typed in custom unit, disable dropdown
+                unitToggle.disabled = true;
+                hiddenInput.value = '';
+                unitToggle.textContent = 'Select Unit';
+                unitSelect.style.opacity = '0.7';
+            } else {
+                // If custom unit is cleared, enable dropdown
+                unitToggle.disabled = false;
+                unitSelect.style.opacity = '1';
+            }
+        });
+        
+        // Unit dropdown selection event
+        unitToggle.addEventListener('click', function() {
+            if (!this.disabled) {
+                // When clicking on the dropdown, disable custom unit
+                customUnitInput.disabled = true;
+                customUnitInput.value = '';
+            }
+        });
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize the type input toggle
+        toggleInputs();
+        
+        // Add event listener for type selection change
+        document.getElementById('zone_type').addEventListener('change', toggleInputs);
+        
+        // Initialize custom selects
+        initializeCustomSelects();
+        
+        // Setup unit input relationships
+        setupUnitInputs();
+        
+        // Close dropdowns when clicking outside
+        document.addEventListener("click", (event) => {
+            const container = document.querySelector('.custom-select-container');
+            if (!container.contains(event.target)) {
+                container.querySelector('.custom-select-dropdown').classList.remove("show");
+            }
+        });
+    });
+
+    // Show file name when an image is selected
+    document.querySelectorAll('.file-input').forEach(input => {
+        input.addEventListener('change', function(e) {
+            const fileName = e.target.files[0]?.name || 'Choose image';
+            this.previousElementSibling.textContent = fileName;
+        });
+    });
+
+    // Show success popup if the form is submitted successfully
+    {% if success %}
+        window.onload = function() {
+            var successPopup = document.getElementById('success-popup');
+            successPopup.style.display = 'block'; // Show the popup
+            setTimeout(() => {
+                successPopup.style.animation = 'slideOut 0.3s ease forwards';
+                setTimeout(() => {
+                    successPopup.style.display = 'none';
+                    successPopup.style.animation = '';
+                }, 300);
+            }, 3000);
+        };
+    {% endif %}
+</script>
+{% endblock %}

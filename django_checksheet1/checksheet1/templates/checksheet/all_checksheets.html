@@ -1,0 +1,739 @@
+{% extends 'checksheet/base.html' %}
+{% load static %}
+{% block extra_css %}
+
+<link rel="stylesheet" href="{% static 'css/all_checksheet.css' %}">
+{% endblock %}
+{% block title %}All CheckSheets{% endblock %}
+{% block content %}
+
+
+
+<div class="page-container">
+    <div class="header">
+        <h2 class="page-title">All CheckSheets</h2>
+        <div class="header-actions">
+            <a href="{% url 'create_checksheet' %}" class="create-btn">
+                <i class="fas fa-plus"></i> Create
+            </a>
+           
+        </div>
+    </div>
+
+    {% if checksheets %}
+        <div class="search-container">
+            <div class="search-input-container">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="checksheetSearch" class="search-input" placeholder="Search by checksheet name or assigned user...">
+            </div>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="checksheets-container">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-sort="name">Name <i class="fas fa-sort"></i></th>
+                        <th class="sortable" data-sort="zones">Zones <i class="fas fa-sort"></i></th>
+                        <th class="sortable" data-sort="line">Line <i class="fas fa-sort"></i></th>
+                        <th class="sortable" data-sort="users">Assigned Users <i class="fas fa-sort"></i></th>
+                        
+                        <th >Created By </th>
+                        <th >Created On </th>
+                        <th>Level 1</th>
+                        <th>Level 2</th>
+                        <th>Level 3</th>
+                        <th class="image-column">Image</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="checksheetTableBody">
+                    {% for checksheet in checksheets %}
+                    <tr data-id="{{ checksheet.id }}">
+                        <td>
+                            <a href="javascript:void(0);" class="checksheet-name" onclick="showDetailModal({{ checksheet.id }})">
+                                {{ checksheet.name }}
+                            </a>
+                        </td>
+                        <td class="content-cell">
+                            <div class="zone-chips">
+                                {% with zones=checksheet.zones.all %}
+                                    {% if zones|length > 0 %}
+                                        {% for zone in zones|slice:":2" %}
+                                            <span class="zone-chip">{{ zone.name }}</span>
+                                        {% endfor %}
+                                        {% if zones|length > 2 %}
+                                            <span class="view-all-chip">. . .</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="empty-text">No zones</span>
+                                    {% endif %}
+                                {% endwith %}
+                            </div>
+                            <!-- Store all zones in hidden div -->
+                            <div class="hidden-data zones-data">
+                                {% for zone in checksheet.zones.all %}
+                                    <span class="zone-data">{{ zone.name }}</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="content-cell">
+                            {{checksheet.line}}
+                        </td>
+                        <td class="content-cell">
+                            <div class="user-chips">
+                                {% with users=checksheet.assigned_users.all %}
+                                    {% if users|length > 0 %}
+                                        {% for user in users|slice:":2" %}
+                                            <span class="user-chip">{{ user.username }}</span>
+                                        {% endfor %}
+                                        {% if users|length > 2 %}
+                                            <span class="view-all-chip">. . .</span>
+                                        {% endif %}
+                                    {% endif %}
+                                {% endwith %}
+                                <button class="edit-users-btn" onclick="toggleUserDropdown('{{ checksheet.id }}')">
+                                    <i class="fas fa-{% if checksheet.assigned_users.all %}pencil-alt{% else %}user-plus{% endif %}"></i>
+                                    {% if not checksheet.assigned_users.all %}Assign Users{% endif %}
+                                </button>
+                            </div>
+                            <!-- Store all users in hidden div -->
+                            <div class="hidden-data users-data">
+                                {% for user in checksheet.assigned_users.all %}
+                                    <span class="user-data">{{ user.username }}</span>
+                                {% endfor %}
+                            </div>
+                            <div class="user-dropdown" id="user-dropdown-{{ checksheet.id }}" style="display: none;">
+                                <div class="user-dropdown-header">
+                                    <span class="user-dropdown-title">Assign Users</span>
+                                    <button type="button" class="user-dropdown-close" onclick="toggleUserDropdown('{{ checksheet.id }}')">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div class="user-dropdown-search-container">
+                                    <i class="fas fa-search search-icon"></i>
+                                    <input type="text" class="user-dropdown-search" placeholder="Search users..." onkeyup="filterUsers('{{ checksheet.id }}', this.value)">
+                                </div>
+                                <form method="post" action="{% url 'assign_users' 'checksheet' checksheet.id %}" class="user-dropdown-form">
+                                    {% csrf_token %}
+                                    <div class="user-list" id="user-list-{{ checksheet.id }}">
+                                    {% for user in all_users %}
+                                        {% if user.role != 'admin' %}
+                                            <div class="user-checkbox-item" data-username="{{ user.username|lower }}">
+                                                <label class="user-checkbox-label">
+                                                    <input type="checkbox" name="user_ids" value="{{ user.id }}" 
+                                                    {% if user in checksheet.assigned_users.all %}checked{% endif %}>
+                                                    {{ user.username }}
+                                                    <span class="user-role">{{ user.role }}</span>
+                                                </label>
+                                            </div>
+                                        {% endif %}
+                                    {% endfor %}
+                                    </div>
+                                    <button type="submit" class="assign-users-submit">Save Changes</button>
+                                </form>
+                            </div>
+                        </td>
+                        <td class="content-cell">
+                            {{checksheet.created_by.username}}
+                        </td>
+                        <td class="content-cell">
+                            {{checksheet.created_on|date:"Y-m-d"}}
+                        </td>
+                        <!-- Level 1 Approver Column -->
+                        <td class="content-cell">
+                            <div class="approver-chips">
+                                {% if checksheet.level_1_approver %}
+                                    <span class="approval-chip">{{ checksheet.level_1_approver.username }}</span>
+                                {% else %}
+                                    <span class="empty-text">Not assigned</span>
+                                {% endif %}
+                                <button class="edit-users-btn" onclick="toggleApproverDropdown('level1-{{ checksheet.id }}')">
+                                    <i class="fas fa-{% if checksheet.level_1_approver %}pencil-alt{% else %}user-plus{% endif %}"></i>
+                                    {% if not checksheet.level_1_approver %}Assign{% endif %}
+                                </button>
+                            </div>
+                            <!-- Level 1 Approver Dropdown -->
+                            <div class="user-dropdown" id="approver-dropdown-level1-{{ checksheet.id }}" style="display: none;">
+                                <div class="user-dropdown-header">
+                                    <span class="user-dropdown-title">Assign Level 1 Approver</span>
+                                    <button type="button" class="user-dropdown-close" onclick="toggleApproverDropdown('level1-{{ checksheet.id }}')">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div class="user-dropdown-search-container">
+                                    <i class="fas fa-search search-icon"></i>
+                                    <input type="text" class="user-dropdown-search" placeholder="Search users..." onkeyup="filterApprovers('level1-{{ checksheet.id }}', this.value)">
+                                </div>
+                                <form method="post" action="{% url 'assign_approver' 'checksheet' checksheet.id 'level1' %}" class="user-dropdown-form">
+                                    {% csrf_token %}
+                                    {% for user in all_users %}
+                                        <div class="user-radio-item">
+                                            <label class="user-radio-label">
+                                                <input type="radio" name="approver_id" value="{{ user.id }}" 
+                                                {% if user == checksheet.level_1_approver %}checked{% endif %}>
+                                                {{ user.username }}
+                                                <span class="user-role">{{ user.role }}</span>
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                    <button type="submit" class="assign-users-submit">Save Changes</button>
+                                </form>
+                            </div>
+                        </td>
+                        <!-- Level 2 Approver Column -->
+                        <td class="content-cell">
+                            <div class="approver-chips">
+                                {% if checksheet.level_2_approver %}
+                                    <span class="approval-chip">{{ checksheet.level_2_approver.username }}</span>
+                                {% else %}
+                                    <span class="empty-text">Not assigned</span>
+                                {% endif %}
+                                <button class="edit-users-btn" onclick="toggleApproverDropdown('level2-{{ checksheet.id }}')">
+                                    <i class="fas fa-{% if checksheet.level_2_approver %}pencil-alt{% else %}user-plus{% endif %}"></i>
+                                    {% if not checksheet.level_2_approver %}Assign{% endif %}
+                                </button>
+                            </div>
+                            <!-- Level 2 Approver Dropdown -->
+                            <div class="user-dropdown" id="approver-dropdown-level2-{{ checksheet.id }}" style="display: none;">
+                                <div class="user-dropdown-header">
+                                    <span class="user-dropdown-title">Assign Level 2 Approver</span>
+                                    <button type="button" class="user-dropdown-close" onclick="toggleApproverDropdown('level2-{{ checksheet.id }}')">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div class="user-dropdown-search-container">
+                                    <i class="fas fa-search search-icon"></i>
+                                    <input type="text" class="user-dropdown-search" placeholder="Search users..." onkeyup="filterApprovers('level2-{{ checksheet.id }}', this.value)">
+                                </div>
+                                <form method="post" action="{% url 'assign_approver' 'checksheet' checksheet.id 'level2' %}" class="user-dropdown-form">
+                                    {% csrf_token %}
+                                    {% for user in all_users %}
+                                        <div class="user-radio-item">
+                                            <label class="user-radio-label">
+                                                <input type="radio" name="approver_id" value="{{ user.id }}" 
+                                                {% if user == checksheet.level_2_approver %}checked{% endif %}>
+                                                {{ user.username }}
+                                                <span class="user-role">{{ user.role }}</span>
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                    <button type="submit" class="assign-users-submit">Save Changes</button>
+                                </form>
+                            </div>
+                        </td>
+                        <!-- Level 3 Approval (Admin Radio Button) -->
+                        <td class="content-cell">
+                            <form method="post" action="{% url 'toggle_level3_approval' 'checksheet' checksheet.id %}" class="approval-radio">
+                                {% csrf_token %}
+                                <div class="radio-option">
+                                    <input type="radio" name="require_level_3" id="require_level_3_yes" value="True" 
+                                        {% if checksheet.require_level_3_approval %}checked{% endif %} 
+                                        onchange="this.form.submit()">
+                                    <label for="require_level_3_yes">Yes</label>
+                                </div>
+                                <div class="radio-option">
+                                    <input type="radio" name="require_level_3" id="require_level_3_no" value="False" 
+                                        {% if not checksheet.require_level_3_approval %}checked{% endif %} 
+                                        onchange="this.form.submit()">
+                                    <label for="require_level_3_no">No</label>
+                                </div>
+                            </form>
+                        </td>
+                        
+                        <td class="image-column">
+                            <div class="table-image">
+                                {% with checksheet.images.all as images %}
+                                {% if images %}
+                                    <div class="image-slider" data-checksheet-id="{{ checksheet.id }}">
+                                        {% for image in images %}
+                                            <img src="{{ image.image.url }}" 
+                                                 alt="CheckSheet Image {{ forloop.counter }}" 
+                                                 class="image-slide {% if forloop.first %}active{% endif %}"
+                                                 data-slide-index="{{ forloop.counter0 }}"
+                                                 data-full-image="{{ image.image.url }}">
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p>No images available</p>
+                                {% endif %}
+                                {% endwith %}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <a href="{% url 'update_checksheet' checksheet.id %}" class="action-button assi" title="Update">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="{% url 'add_zone' checksheet.id %}" class="action-button acti" title="Add Zone">
+                                    <i class="fas fa-plus"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div id="noResults" class="no-results" style="display: none;">
+                No checksheets found matching your search.
+            </div>
+            <div class="pagination">
+                <div class="pagination-info">
+                    <span>Total CheckSheets: <span id="checksheetCount">{{ checksheets|length }}</span></span>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <i class="fas fa-folder-open"></i>
+            <p>No CheckSheets available</p>
+        </div>
+    {% endif %}
+</div>
+{% if messages %}
+<div class="toast-container">
+    {% for message in messages %}
+    {% with message.tags.split as tags_list %}
+        {% if 'checksheet_creation' in tags_list or 'checksheet_update' in tags_list or 'zone_add' in tags_list%}
+        <div class="toast-message toast-success">
+            <div class="toast-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="toast-content">
+                {{ message }}
+            </div>
+        </div>
+        {% endif %}
+    {% endwith %}
+    {% endfor %}
+</div>
+{% endif %}
+
+<div id="imagePreviewOverlay" class="image-preview-overlay">
+    <div class="image-preview-container">
+        <img id="imagePreview" class="image-preview" src="" alt="Image Preview">
+        <div class="preview-navigation">
+            <button id="prevImageBtn" class="preview-nav-btn">Previous</button>
+            <button id="nextImageBtn" class="preview-nav-btn">Next</button>
+        </div>
+    </div>
+</div>
+<!-- Backdrop for user dropdown -->
+<div class="user-dropdown-backdrop" id="userDropdownBackdrop"></div>
+<!-- Full Page PDF Viewer -->
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+<script>
+    
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+document.addEventListener('DOMContentLoaded', function() {
+    const toasts = document.querySelectorAll('.toast-message');
+    toasts.forEach(toast => {
+        setTimeout(() => {
+            toast.style.animation = 'fadeOut 0.5s ease forwards';
+            setTimeout(() => {
+                
+                toast.remove();
+            }, 500);
+        }, 5000);
+    });
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Table search functionality
+    const searchInput = document.getElementById('checksheetSearch');
+    const tableBody = document.getElementById('checksheetTableBody');
+    const noResults = document.getElementById('noResults');
+    const checksheetCount = document.getElementById('checksheetCount');
+    
+    if (searchInput) {
+        searchInput.addEventListener('keyup', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            const rows = tableBody.querySelectorAll('tr');
+            let visibleCount = 0;
+            
+            rows.forEach(row => {
+                // Get checksheet name from the first td element (name column)
+                const nameElement = row.querySelector('.checksheet-name');
+                // Get assigned users from the user chips in the third column
+                const userChips = row.querySelectorAll('.user-chip');
+                
+                // Extract the text contents
+                const checksheetName = nameElement ? nameElement.textContent.toLowerCase() : '';
+                const assignedUsers = Array.from(userChips).map(chip => chip.textContent.toLowerCase()).join(' ');
+                
+                // Check if the search term matches either name or assigned users
+                if (checksheetName.includes(searchTerm) || assignedUsers.includes(searchTerm)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            // Show/hide no results message
+            if (visibleCount === 0 && rows.length > 0) {
+                noResults.style.display = 'block';
+            } else {
+                noResults.style.display = 'none';
+            }
+            
+            // Update the count display
+            if (checksheetCount) {
+                checksheetCount.textContent = visibleCount;
+            }
+        });
+    }
+
+    // Sorting functionality
+    const sortableHeaders = document.querySelectorAll('.sortable');
+    let currentSort = {
+        column: null,
+        direction: 'asc'
+    };
+
+    sortableHeaders.forEach(header => {
+        header.addEventListener('click', function() {
+            const column = this.dataset.sort;
+            const direction = currentSort.column === column && currentSort.direction === 'asc' ? 'desc' : 'asc';
+            
+            // Update sort icons
+            sortableHeaders.forEach(h => {
+                const icon = h.querySelector('i');
+                icon.className = 'fas fa-sort';
+            });
+            
+            const icon = this.querySelector('i');
+            icon.className = `fas fa-sort-${direction === 'asc' ? 'up' : 'down'}`;
+            
+            // Sort the table
+            const rows = Array.from(tableBody.querySelectorAll('tr'));
+            rows.sort((a, b) => {
+                let aValue, bValue;
+                
+                switch(column) {
+                    case 'name':
+                        aValue = a.querySelector('.checksheet-name').textContent;
+                        bValue = b.querySelector('.checksheet-name').textContent;
+                        break;
+                    case 'zones':
+                        aValue = a.querySelector('.zone-chips').textContent;
+                        bValue = b.querySelector('.zone-chips').textContent;
+                        break;
+                    case 'users':
+                        aValue = Array.from(a.querySelectorAll('.user-chip')).map(chip => chip.textContent).join(' ');
+                        bValue = Array.from(b.querySelectorAll('.user-chip')).map(chip => chip.textContent).join(' ');
+                        break;
+                    case 'ops':
+                        aValue = Array.from(a.querySelectorAll('.pdf-link')).map(link => link.textContent.trim()).join(' ');
+                        bValue = Array.from(b.querySelectorAll('.pdf-link')).map(link => link.textContent.trim()).join(' ');
+                        break;
+                }
+                
+                if (direction === 'asc') {
+                    return aValue.localeCompare(bValue);
+                } else {
+                    return bValue.localeCompare(aValue);
+                }
+            });
+            
+            // Reorder the table rows
+            rows.forEach(row => tableBody.appendChild(row));
+            
+            currentSort = { column, direction };
+        });
+    });
+    
+ 
+    
+    
+    
+    
+});
+function initImageSliders() {
+    const sliders = document.querySelectorAll('.image-slider');
+    const imagePreviewOverlay = document.getElementById('imagePreviewOverlay');
+    const imagePreview = document.getElementById('imagePreview');
+    const prevImageBtn = document.getElementById('prevImageBtn');
+    const nextImageBtn = document.getElementById('nextImageBtn');
+    
+    let currentPreviewImages = [];
+    let currentPreviewIndex = 0;
+
+    // Image Slider Logic (previous implementation)
+    sliders.forEach(slider => {
+        const slides = slider.querySelectorAll('.image-slide');
+        
+        if (slides.length <= 0) return;
+        
+        let currentSlideIndex = 0;
+        
+        function changeSlide() {
+            slides[currentSlideIndex].classList.remove('active');
+            currentSlideIndex = (currentSlideIndex + 1) % slides.length;
+            slides[currentSlideIndex].classList.add('active');
+        }
+        
+        slider.intervalId = setInterval(changeSlide, 2000);
+
+        // Preview Logic
+        slides.forEach(slide => {
+            slide.addEventListener('click', function() {
+                // Collect all image sources for this slider
+                currentPreviewImages = Array.from(slides).map(s => s.getAttribute('data-full-image'));
+                
+                // Set initial preview image
+                currentPreviewIndex = Array.from(slides).indexOf(this);
+                imagePreview.src = currentPreviewImages[currentPreviewIndex];
+                
+                // Show overlay
+                imagePreviewOverlay.style.display = 'flex';
+            });
+        });
+    });
+
+    // Close preview when clicking outside image
+    imagePreviewOverlay.addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.style.display = 'none';
+        }
+    });
+
+    // Navigation buttons
+    prevImageBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        currentPreviewIndex = (currentPreviewIndex - 1 + currentPreviewImages.length) % currentPreviewImages.length;
+        imagePreview.src = currentPreviewImages[currentPreviewIndex];
+    });
+
+    nextImageBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        currentPreviewIndex = (currentPreviewIndex + 1) % currentPreviewImages.length;
+        imagePreview.src = currentPreviewImages[currentPreviewIndex];
+    });
+
+    // Optional: Close with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && imagePreviewOverlay.style.display === 'flex') {
+            imagePreviewOverlay.style.display = 'none';
+        }
+    });
+}
+
+// Initialize image sliders when DOM is loaded
+document.addEventListener('DOMContentLoaded', initImageSliders);
+
+function toggleUserDropdown(checksheetId) {
+    const allDropdowns = document.querySelectorAll('.user-dropdown');
+    const backdrop = document.getElementById('userDropdownBackdrop');
+    
+    // Close all other dropdowns
+    allDropdowns.forEach(dropdown => {
+        if (dropdown.id !== `user-dropdown-${checksheetId}`) {
+            dropdown.style.display = 'none';
+        }
+    });
+    
+    const dropdown = document.getElementById(`user-dropdown-${checksheetId}`);
+    const isOpening = dropdown.style.display === 'none' || dropdown.style.display === '';
+    
+    // Toggle dropdown visibility
+    dropdown.style.display = isOpening ? 'block' : 'none';
+    backdrop.style.display = isOpening ? 'block' : 'none';
+    
+    // Center the dropdown in the viewport
+    if (isOpening) {
+        // Force recalculation of position
+        const windowHeight = window.innerHeight;
+        const windowWidth = window.innerWidth;
+        const dropdownHeight = dropdown.offsetHeight;
+        const dropdownWidth = dropdown.offsetWidth;
+
+        // Calculate the exact center
+        const topPosition = (windowHeight - dropdownHeight) / 2 + window.scrollY;
+        const leftPosition = (windowWidth - dropdownWidth) / 2 + window.scrollX;
+
+        dropdown.style.top = `${topPosition}px`;
+        dropdown.style.left = `${leftPosition}px`;
+        dropdown.style.transform = 'none'; // Remove transform since we're setting exact positions
+
+        document.body.style.overflow = 'hidden'; // Prevent scrolling
+    } else {
+        document.body.style.overflow = ''; // Restore scrolling
+    }
+}
+function filterUsers(checksheetId, searchTerm) {
+    searchTerm = searchTerm.toLowerCase();
+    const userItems = document.querySelectorAll(`#user-list-${checksheetId} .user-checkbox-item`);
+    let visibleCount = 0;
+    
+    userItems.forEach(item => {
+        const username = item.getAttribute('data-username');
+        if (username.includes(searchTerm)) {
+            item.style.display = '';
+            visibleCount++;
+        } else {
+            item.style.display = 'none';
+        }
+    });
+    
+    let noResultsMsg = document.getElementById(`no-user-results-${checksheetId}`);
+    if (visibleCount === 0) {
+        if (!noResultsMsg) {
+            noResultsMsg = document.createElement('div');
+            noResultsMsg.id = `no-user-results-${checksheetId}`;
+            noResultsMsg.className = 'no-results';
+            noResultsMsg.textContent = 'No users found matching your search.';
+            document.getElementById(`user-list-${checksheetId}`).appendChild(noResultsMsg);
+        }
+        noResultsMsg.style.display = 'block';
+    } else if (noResultsMsg) {
+        noResultsMsg.style.display = 'none';
+    }
+}
+
+document.addEventListener('click', function(event) {
+    const backdrop = document.getElementById('userDropdownBackdrop');
+    if (event.target === backdrop) {
+        const allDropdowns = document.querySelectorAll('.user-dropdown');
+        allDropdowns.forEach(dropdown => {
+            dropdown.style.display = 'none';
+        });
+        backdrop.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+});
+
+// Detail modal functions
+function showDetailModal(checksheetId) {
+    const row = document.querySelector(`tr[data-id="${checksheetId}"]`);
+    if (!row) return;
+    
+    const name = row.querySelector('.checksheet-name').textContent.trim();
+    
+    // Get ALL zones from the hidden data
+    const zonesData = row.querySelector('.zones-data');
+    const zones = zonesData ? Array.from(zonesData.querySelectorAll('.zone-data')).map(zone => zone.textContent.trim()) : [];
+    
+    // Get ALL users from the hidden data
+    const usersData = row.querySelector('.users-data');
+    const users = usersData ? Array.from(usersData.querySelectorAll('.user-data')).map(user => user.textContent.trim()) : [];
+    
+    // Get ALL images from the image slider
+    const imageSlider = row.querySelector('.image-slider');
+    const images = imageSlider ? Array.from(imageSlider.querySelectorAll('.image-slide')).map(slide => {
+        return {
+            url: slide.getAttribute('data-full-image'),
+            alt: slide.getAttribute('alt')
+        };
+    }) : [];
+    
+    // Populate modal
+    document.getElementById('detailModalTitle').textContent = name;
+    
+    // Build content HTML
+    let contentHTML = `
+        <div class="detail-section">
+            <h3 class="detail-section-title">Zones</h3>
+            <div class="detail-zone-chips">
+                ${zones.length > 0 ? 
+                    zones.map(zone => `<span class="zone-chip">${zone}</span>`).join('') : 
+                    '<span class="empty-text">No zones</span>'}
+            </div>
+        </div>
+        
+        <div class="detail-section">
+            <h3 class="detail-section-title">Assigned Users</h3>
+            <div class="detail-user-chips">
+                ${users.length > 0 ? 
+                    users.map(user => `<span class="user-chip">${user}</span>`).join('') : 
+                    '<span class="empty-text">No users assigned</span>'}
+            </div>
+        </div>
+        
+        <div class="detail-section">
+        <h3 class="detail-section-title">Images</h3>
+        <div class="detail-images-grid">
+            ${images.length > 0 ? 
+                images.map((image) => `
+                    <div class="detail-image-container">
+                        <img src="${image.url}" 
+                            alt="${image.alt}" 
+                            class="detail-image">
+                    </div>
+                `).join('') : 
+                '<span class="empty-text">No images available</span>'}
+        </div>
+    `;
+    
+    document.getElementById('detailModalContent').innerHTML = contentHTML;
+    
+    // Show modal
+    document.getElementById('detailModal').style.display = 'block';
+    document.getElementById('detailModalBackdrop').style.display = 'block';
+    
+    // Initialize image slider in modal
+    initImageSliders();
+}
+
+function closeDetailModal() {
+    document.getElementById('detailModal').style.display = 'none';
+    document.getElementById('detailModalBackdrop').style.display = 'none';
+}
+
+// Close detail modal when clicking outside
+document.getElementById('detailModalBackdrop').addEventListener('click', closeDetailModal);
+
+// Prevent modal close when clicking inside the modal
+document.getElementById('detailModal').addEventListener('click', function(event) {
+    event.stopPropagation();
+});
+
+
+
+function toggleApproverDropdown(approverType) {
+    // Close all other dropdowns first
+    const allDropdowns = document.querySelectorAll('.user-dropdown');
+    allDropdowns.forEach(dropdown => {
+        if (dropdown.id !== `approver-dropdown-${approverType}`) {
+            dropdown.style.display = 'none';
+        }
+    });
+    
+    // Toggle the current dropdown
+    const dropdown = document.getElementById(`approver-dropdown-${approverType}`);
+    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+}
+
+// Function to filter users in approver dropdowns
+function filterApprovers(approverType, query) {
+    const dropdown = document.getElementById(`approver-dropdown-${approverType}`);
+    const items = dropdown.querySelectorAll('.user-radio-item');
+    
+    query = query.toLowerCase();
+    items.forEach(item => {
+        const username = item.querySelector('label').textContent.toLowerCase();
+        if (username.includes(query)) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+</script>
+
+<!-- Detail Modal -->
+<div class="detail-modal-backdrop" id="detailModalBackdrop"></div>
+<div class="detail-modal" id="detailModal">
+    <div class="detail-modal-header">
+        <h2 class="detail-modal-title" id="detailModalTitle">CheckSheet Details</h2>
+        <button class="detail-modal-close" onclick="closeDetailModal()">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="detail-content" id="detailModalContent">
+        <!-- Content will be populated by JavaScript -->
+    </div>
+</div>
+{% endblock %}

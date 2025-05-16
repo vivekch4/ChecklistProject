@@ -1,0 +1,120 @@
+{% extends 'checksheet/base.html' %}
+{% load static %}
+{% block extra_css %}
+
+<link rel="stylesheet" href="{% static 'css/assign_sheets.css' %}">
+{% endblock %}
+{% block title %}Assign CheckSheet & StarterSheet{% endblock %}
+{% block content %}
+
+
+<div class="page-container">
+    <div class="header">
+        <h2 class="page-title">Assign CheckSheet & StarterSheet to {{ user.username }}</h2>
+        <div class="buttons-container">
+            <button type="submit" form="assignment-form" class="submit-btn">
+                <i class="fas fa-save"></i> Save Assignments
+            </button>
+            <a href="{% url 'user_list' %}" class="back-button">
+                <i class="fas fa-times"></i> 
+            </a>
+        </div>
+    </div>
+
+    <form method="post" id="assignment-form">
+        {% csrf_token %}
+        
+        <!-- Tabs for sheet types -->
+        <div class="section-tabs">
+            <div class="section-tab active" onclick="showSection('checksheets')">CheckSheets</div>
+            <div class="section-tab" onclick="showSection('startersheets')">StarterSheets</div>
+        </div>
+        
+        <!-- CheckSheets Table -->
+        <div id="checksheets-section" class="table-responsive sheet-section">
+            <table class="assignment-table">
+                <thead>
+                    <tr>
+                        {% for checksheet in checksheets %}
+                        <th>{{ checksheet.name }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        {% for checksheet in checksheets %}
+                        <td>
+                            <input
+                                type="checkbox"
+                                id="checksheet_{{ checksheet.id }}"
+                                name="check_sheets"
+                                value="{{ checksheet.id }}"
+                                {% if checksheet in user.assigned_check_sheets.all %}checked{% endif %}
+                            >
+                        </td>
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+            <div class="pagination">
+                <div class="pagination-info">
+                    <span>Total CheckSheets: {{ checksheets|length }}</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- StarterSheets Table -->
+        <div id="startersheets-section" class="table-responsive sheet-section" style="display: none;">
+            <table class="assignment-table">
+                <thead>
+                    <tr>
+                        {% for startersheet in Starter %}
+                        <th>{{ startersheet.name }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        {% for startersheet in Starter %}
+                        <td>
+                            <input
+                                type="checkbox"
+                                id="startersheet_{{ startersheet.id }}"
+                                name="starter_sheets"
+                                value="{{ startersheet.id }}"
+                                {% if startersheet in user.assigned_starter_sheets.all %}checked{% endif %}
+                            >
+                        </td>
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+            <div class="pagination">
+                <div class="pagination-info">
+                    <span>Total StarterSheets: {{ Starter|length }}</span>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    function showSection(sectionName) {
+        // Hide all sections
+        document.querySelectorAll('.sheet-section').forEach(section => {
+            section.style.display = 'none';
+        });
+        
+        // Show selected section
+        document.getElementById(sectionName + '-section').style.display = 'block';
+        
+        // Update tab active state
+        document.querySelectorAll('.section-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        
+        // Find tab that was clicked and make it active
+        event.target.classList.add('active');
+    }
+</script>
+{% endblock %}
